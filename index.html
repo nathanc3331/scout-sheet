@@ -1,0 +1,878 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>Fakebaseball Scout Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a two-column scorecard. Left: the inputs (data, matchup, game state). Right: the read, the chart, the tendencies. */
+:root{
+  --bg:#eef1ec; --panel:#f8faf6; --ink:#17251c; --muted:#5b6b60; --line:#cdd6cc;
+  --field:#1f4a33; --field-soft:#d9e6dc; --bulb:#c27a00; --bulb-soft:#f6e6c4;
+  --board:#163a28; --good:#1d7a45; --bad:#a83a2c; --warn:#a86b00;
+  --display:"Saira Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1712; --panel:#16221a; --ink:#e3ebe4; --muted:#93a597; --line:#2a3a2f;
+  --field:#8fd0a8; --field-soft:#1e3527; --bulb:#ffb938; --bulb-soft:#3b2d10;
+  --board:#0a130d; --good:#5fd08e; --bad:#ff8a78; --warn:#ffc35c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1712; --panel:#16221a; --ink:#e3ebe4; --muted:#93a597; --line:#2a3a2f;
+  --field:#8fd0a8; --field-soft:#1e3527; --bulb:#ffb938; --bulb-soft:#3b2d10;
+  --board:#0a130d; --good:#5fd08e; --bad:#ff8a78; --warn:#ffc35c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);padding-inline:16px;padding-block:20px 48px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px;border-bottom:3px solid var(--field);padding-bottom:10px}
+h1{font:800 clamp(30px,5vw,44px)/1 var(--display);letter-spacing:.01em;margin:0;text-transform:uppercase;color:var(--field)}
+h1 span{color:var(--bulb)}
+.sub{color:var(--muted);margin:0;max-width:60ch}
+h2{font:700 15px/1.2 var(--display);letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:minmax(0,350px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}.results{order:-1}}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 16px;min-width:0}
+label{display:block;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+input,select,textarea,button{font:inherit;color:var(--ink)}
+input[type=text],input[type=number],select,textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:6px 8px}
+textarea{font:12px/1.4 var(--mono);min-height:84px;resize:vertical}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--bulb);outline-offset:1px}
+.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stack{display:flex;flex-direction:column;gap:10px}
+.btn{background:var(--field);color:var(--bg);border:0;border-radius:4px;padding:7px 14px;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--field);border:1px solid var(--field)}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.check{display:flex;gap:8px;align-items:center;font-size:14px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:500;margin:0}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.links a{color:var(--field);font-family:var(--mono);font-size:12px;word-break:break-all}
+.msg{font-size:13px;margin:0}
+.msg.err{color:var(--bad)} .msg.ok{color:var(--good)}
+details summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--field)}
+.seg{display:flex;border:1px solid var(--field);border-radius:4px;overflow:hidden}
+.seg button{flex:1;background:transparent;border:0;padding:6px 8px;cursor:pointer;color:var(--field);font-weight:600;font-size:13px}
+.seg button[aria-pressed=true]{background:var(--field);color:var(--bg)}
+
+/* The read */
+.read{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px 26px;align-items:center}
+@media (max-width:560px){.read{grid-template-columns:minmax(0,1fr)}}
+.board{background:var(--board);color:#e9f2ea;border:1px solid var(--line);border-radius:6px;padding:12px 22px 14px;text-align:center;min-width:180px}
+.board .lbl{font:700 13px/1 var(--display);letter-spacing:.16em;text-transform:uppercase;opacity:.85}
+.board .num{font:800 76px/1 var(--display);color:#ffb938;font-variant-numeric:tabular-nums;letter-spacing:.02em;margin-top:6px}
+.who{font:700 22px/1.15 var(--display);text-transform:uppercase;letter-spacing:.03em;margin:0}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.pill{font:600 12px/1 var(--body);padding:5px 8px;border-radius:99px;background:var(--field-soft);color:var(--field)}
+.pill.strong{background:var(--bulb-soft);color:var(--bulb)}
+.pill.weak{background:transparent;border:1px dashed var(--muted);color:var(--muted)}
+.probs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:6px}
+.probs div{border-left:3px solid var(--line);padding-left:8px}
+.probs b{display:block;font:600 20px/1.1 var(--mono);font-variant-numeric:tabular-nums}
+@media (max-width:560px){.probs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.probs span{font-size:12px;color:var(--muted)}
+.alts{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
+.alt{font:600 13px var(--mono);border:1px solid var(--line);border-radius:4px;padding:3px 8px;background:var(--bg);cursor:pointer;color:var(--ink)}
+.alt.on{border-color:var(--bulb);color:var(--bulb)}
+.chart{width:100%;height:auto;display:block}
+.chart text{font:11px var(--mono);fill:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted);margin-top:4px}
+.legend i{display:inline-block;width:12px;height:10px;margin-right:5px;vertical-align:-1px;border-radius:2px}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:700px){.two{grid-template-columns:minmax(0,1fr)}}
+.bars{display:flex;flex-direction:column;gap:7px}
+.bar{display:grid;grid-template-columns:minmax(0,1fr) 46px;gap:2px 10px;align-items:center;font-size:13px}
+.bar .t{display:flex;justify-content:space-between;gap:8px}
+.bar .t small{color:var(--muted)}
+.bar .track{grid-column:1/2;height:7px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar .fill{height:100%;background:var(--field)}
+.bar .v{grid-row:1/3;grid-column:2;text-align:right;font:600 13px var(--mono)}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}
+.stat b{display:block;font:600 19px/1.1 var(--mono);font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.stat em{font-style:normal;font-size:12px;color:var(--muted)}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:5px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.r-hit{color:var(--bad);font-weight:600}.r-out{color:var(--good)}.r-walk{color:var(--warn)}
+.sample{background:var(--bulb-soft);color:var(--ink);border-radius:4px;padding:8px 10px;font-size:13px}
+.rules{font-size:13px;color:var(--muted)}
+.rules p{margin:.3em 0}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Scout <span>Sheet</span></h1>
+    <p class="sub">Reads an opponent's pitch history from rslashfakebaseball.com and suggests the swing with the best expected result under MLR range rules.</p>
+  </header>
+
+  <div class="grid">
+    <!-- Inputs -->
+    <div class="col">
+      <section class="box stack" aria-labelledby="h-data">
+        <h2 id="h-data">1 · Load their history</h2>
+        <div class="seg" role="group" aria-label="Who are you scouting">
+          <button type="button" id="mode-p" aria-pressed="true">Scout a pitcher</button>
+          <button type="button" id="mode-b" aria-pressed="false">Scout a batter</button>
+        </div>
+        <div class="row">
+          <div><label for="pname">Player name</label><input type="text" id="pname" placeholder="e.g. Whitt Bass" list="playerList"><datalist id="playerList"></datalist></div>
+          <div><label for="league">League</label><select id="league"><option value="mlr">MLR</option><option value="milr">MiLR</option></select></div>
+        </div>
+        <div><label for="pid">Player ID</label><input type="number" id="pid" placeholder="from the name lookup"></div>
+        <div class="btns" id="liveRow" hidden><button class="btn" type="button" id="fetchLive">Pull from the site</button><span class="pill strong">Live API</span></div>
+        <div class="links stack" id="links"></div>
+        <div>
+          <label for="paste">Paste the JSON here</label>
+          <textarea id="paste" placeholder='[{"paID":…,"pitch":171,"swing":418,…}]  — a player card JSON also works and fills in types'></textarea>
+        </div>
+        <div class="btns">
+          <button class="btn" type="button" id="load">Load</button>
+          <label class="btn ghost" for="file" style="margin:0;text-transform:none;letter-spacing:0;font-size:15px">Upload file</label>
+          <input type="file" id="file" accept=".json,.txt,application/json" hidden>
+          <button class="btn ghost" type="button" id="loadSample">Example data</button>
+        </div>
+        <p class="msg" id="loadMsg" role="status"></p>
+      </section>
+
+      <section class="box stack" aria-labelledby="h-match">
+        <h2 id="h-match">2 · Matchup</h2>
+        <div class="row">
+          <div><label for="batType">Batter type</label><select id="batType"></select></div>
+          <div><label for="batHand">Batter hand</label><select id="batHand"><option>Right</option><option>Left</option></select></div>
+        </div>
+        <div class="row">
+          <div><label for="pitType">Pitcher type</label><select id="pitType"></select></div>
+          <div><label for="pitHand">Pitcher hand</label><select id="pitHand"><option>Right</option><option>Left</option></select></div>
+        </div>
+        <div class="row">
+          <div><label for="bonus">Hand bonus</label><select id="bonus"><option>Balanced</option><option>Anti-Homer</option><option>Anti-Single</option></select></div>
+          <div><label for="goal">Aim for</label><select id="goal"></select></div>
+        </div>
+        <div class="btns">
+          <label class="check"><input type="checkbox" id="ifin"> Infield in</label>
+          <label class="check"><input type="checkbox" id="bunt"> Bunt</label>
+        </div>
+        <details>
+          <summary>Park factors</summary>
+          <div class="row3" style="margin-top:8px">
+            <div><label for="pf0">HR</label><input type="number" step="0.001" id="pf0" value="1"></div>
+            <div><label for="pf1">3B</label><input type="number" step="0.001" id="pf1" value="1"></div>
+            <div><label for="pf2">2B</label><input type="number" step="0.001" id="pf2" value="1"></div>
+            <div><label for="pf3">1B</label><input type="number" step="0.001" id="pf3" value="1"></div>
+            <div><label for="pf4">BB</label><input type="number" step="0.001" id="pf4" value="1"></div>
+          </div>
+          <p class="hint" style="margin-top:6px">Home park multipliers from the rosters sheet. Leave at 1 for no stadium.</p>
+        </details>
+      </section>
+
+      <section class="box stack" aria-labelledby="h-sit">
+        <h2 id="h-sit">3 · Right now in the game</h2>
+        <label class="check"><input type="checkbox" id="newGame" checked> <span id="newGameLbl">First pitch they throw this game</span></label>
+        <div class="row">
+          <div><label for="lastNum" id="lastNumLbl">Their last pitch</label><input type="number" id="lastNum" min="1" max="1000"></div>
+          <div><label for="lastOpp" id="lastOppLbl">Swing it faced</label><input type="number" id="lastOpp" min="1" max="1000"></div>
+        </div>
+        <div class="row">
+          <div><label for="lastRes">Last result</label><select id="lastRes"><option value="out">Out</option><option value="hit">Hit</option><option value="walk">Walk</option></select></div>
+          <div><label for="outs">Outs</label><select id="outs"><option>0</option><option>1</option><option>2</option></select></div>
+        </div>
+        <div class="row">
+          <div><label for="runners">Runners</label><select id="runners"><option value="0">Bases empty</option><option value="1">Runners on</option></select></div>
+          <div><label for="me" id="meLbl">Batter (you)</label><input type="text" id="me" placeholder="optional"></div>
+        </div>
+        <p class="hint">Filling in the last pitch and the swing it faced lets the sheet use their pitch-to-pitch habits.</p>
+      </section>
+
+      <section class="box rules" aria-labelledby="h-rules">
+        <h2 id="h-rules">Rules used</h2>
+        <p>Numbers run 1 to 1000 and wrap, so 10 is 10 away from both 20 and 1000. The difference (0 to 500) lands in stacked ranges: HR, 3B, 2B, 1B, BB, FO, K, PO, RGO, LGO.</p>
+        <p>Range sizes are batter type plus pitcher type (501 points), plus the pitcher's hand bonus when hands match, then park factors and infield in. Values come from the Type Listings in the MLR rulebook (rev. Sep 14, 2026).</p>
+        <p>A difference of 496 to 500 can become a lineout or triple play with runners on; the sheet scores it as the LGO it would otherwise be.</p>
+      </section>
+    </div>
+
+    <!-- Results -->
+    <div class="col results">
+      <section class="box" aria-labelledby="h-read">
+        <h2 id="h-read">The read</h2>
+        <div id="sampleNote" class="sample" hidden>Showing example data: Whitt Bass, MLR seasons 2 to 3 (a partial pull). Load your opponent to get a real read.</div>
+        <div class="read" style="margin-top:10px">
+          <div class="board" aria-live="polite">
+            <div class="lbl" id="boardLbl">Swing</div>
+            <div class="num" id="bestNum">—</div>
+          </div>
+          <div style="min-width:0">
+            <p class="who" id="who">No data loaded</p>
+            <div class="pills" id="pills"></div>
+            <div class="probs" id="probs"></div>
+          </div>
+        </div>
+        <div class="alts" id="alts"></div>
+      </section>
+
+      <section class="box" aria-labelledby="h-chart">
+        <h2 id="h-chart">Where the next number is likely to land</h2>
+        <svg class="chart" id="chart" viewBox="0 0 1040 230" role="img" aria-label="Probability of the next number across 1 to 1000"></svg>
+        <div class="legend" id="legend"></div>
+      </section>
+
+      <div class="two">
+        <section class="box" aria-labelledby="h-why">
+          <h2 id="h-why">What drives this read</h2>
+          <div class="bars" id="drivers"></div>
+          <p class="hint" style="margin-top:10px">Weights are fit to this player's own history: each habit is scored on how well it would have called their past numbers.</p>
+        </section>
+        <section class="box" aria-labelledby="h-test">
+          <h2 id="h-test">How well it would have done</h2>
+          <div class="stats" id="backtest"></div>
+          <p class="hint" style="margin-top:10px" id="btNote"></p>
+        </section>
+      </div>
+
+      <div class="two">
+        <section class="box" aria-labelledby="h-zones">
+          <h2 id="h-zones">Favorite zones</h2>
+          <svg class="chart" id="zones" viewBox="0 0 520 170" role="img" aria-label="Share of numbers in each hundred"></svg>
+          <div class="legend"><span><i style="background:var(--field)"></i>All</span><span><i style="background:var(--bulb)"></i>Last 30</span></div>
+        </section>
+        <section class="box" aria-labelledby="h-habits">
+          <h2 id="h-habits">Habits</h2>
+          <div class="stats" id="habits"></div>
+        </section>
+      </div>
+
+      <section class="box" aria-labelledby="h-log">
+        <h2 id="h-log">Recent history</h2>
+        <div class="tbl"><table id="log"></table></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const OUT=['HR','3B','2B','1B','BB','FO','K','PO','RGO','LGO'];
+const BAT={
+ 'Basic Neutral':[11,3,20,37,20,51,49,10,24,25],'Basic Power':[21,2,15,20,20,60,58,6,24,24],
+ 'Basic Contact':[8,3,16,50,20,45,31,12,32,33],'Max Homers':[35,1,10,8,14,40,7,5,65,65],
+ 'Speedy':[6,16,21,20,14,62,34,58,10,9],'Extra Base Focus':[15,8,27,10,14,16,55,55,25,25],
+ '1B/BB':[8,2,14,41,40,35,20,11,35,44],'Extremely Neutral':[15,15,15,15,15,35,35,35,35,35],
+ 'Work The Count':[10,4,14,16,56,42,41,23,22,22],'HR/K':[28,1,12,21,10,20,90,10,30,28],
+ 'Three True Outcomes':[25,1,6,7,45,20,121,5,10,10],'Sacrifice Master':[10,2,15,34,30,99,10,10,30,10],
+ 'Single Focused':[7,1,10,70,10,20,10,75,24,23],'Pitcher':[8,2,8,16,21,20,85,20,35,35]};
+const PIT={
+ 'Basic Balanced':[13,1,14,35,19,57,45,13,28,26],'Basic Strikeout':[11,2,16,34,19,57,62,8,20,22],
+ 'Basic Finesse':[13,1,14,38,18,46,34,16,34,37],'No Homers':[1,9,24,33,21,53,41,26,21,22],
+ 'Flyball Pitcher':[20,4,18,13,13,89,21,21,26,26],'Three True Outcomes':[23,1,7,10,30,23,126,8,11,12],
+ 'Trust Your Defense':[5,11,23,27,15,59,19,15,39,38],'Extreme Groundballer':[8,2,29,32,16,25,8,7,62,62],
+ '1B/BB':[7,1,12,40,38,50,28,22,25,28],'Extremely Neutral':[14,14,14,14,14,36,36,36,36,37],
+ 'Weak Contact':[9,2,25,31,13,26,11,109,13,12],'Nothing To Hit':[11,2,13,24,42,45,31,9,37,37],
+ 'Single Focus':[6,1,8,72,10,24,9,69,25,27],'Position':[18,1,22,47,31,55,11,27,20,19]};
+const BONUS={'Anti-Homer':[-4,-1,-3,-2,-1,1,6,0,2,2],'Anti-Single':[-2,-1,-3,-7,-1,2,8,2,1,1],'Balanced':[-3,-1,-3,-4,-1,2,5,1,2,2]};
+const BATCODE={BN:'Basic Neutral',BP:'Basic Power',BC:'Basic Contact',MH:'Max Homers',S:'Speedy',XB:'Extra Base Focus','1B':'1B/BB',EN:'Extremely Neutral',WC:'Work The Count',HK:'HR/K',TT:'Three True Outcomes',SM:'Sacrifice Master',SF:'Single Focused',P:'Pitcher'};
+const PITCODE={BB:'Basic Balanced',BS:'Basic Strikeout',BF:'Basic Finesse',NH:'No Homers',FP:'Flyball Pitcher',TT:'Three True Outcomes',TD:'Trust Your Defense',EG:'Extreme Groundballer','1B':'1B/BB',EN:'Extremely Neutral',WC:'Weak Contact',NT:'Nothing To Hit',SF:'Single Focus',PO:'Position',PP:'Position'};
+const BONCODE={H:'Anti-Homer',S:'Anti-Single',B:'Balanced'};
+// Approximate run values per outcome (linear weights). Groundouts carry double-play risk.
+const VAL={HR:1.40,'3B':1.03,'2B':0.75,'1B':0.46,BB:0.32,FO:-0.24,K:-0.28,PO:-0.27,RGO:-0.33,LGO:-0.33,BS:0.42,SAC:-0.10,BO:-0.45};
+const HITS=new Set(['HR','3B','2B','1B','BS']);
+const ONBASE=new Set(['HR','3B','2B','1B','BB','BS']);
+const NAMES={HR:'Home run','3B':'Triple','2B':'Double','1B':'Single',BB:'Walk',FO:'Flyout',K:'Strikeout',PO:'Popup',RGO:'Groundout (R)',LGO:'Groundout (L)',BS:'Bunt single',SAC:'Sacrifice',BO:'Bunt out'};
+
+const wrap=x=>((Math.round(x)-1)%1000+1000)%1000+1;
+const cdist=(a,b)=>{const d=Math.abs(a-b)%1000;return d>500?1000-d:d;};
+const sdelta=(a,b)=>((a-b)%1000+1500)%1000-500;
+const pct=(x,d=0)=>(100*x).toFixed(d)+'%';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+
+// ---------- State ----------
+let mode='pitcher';       // which link set to show; data mode is detected on load
+let dataMode='pitcher';   // pitcher: predict pitch; batter: predict swing
+let R=[];                 // normalized valid records (target t, opponent o)
+let subject='';
+let isSample=false;
+let model=null;           // fitted weights + sigma
+let chosen=null;          // number the user picked from alternatives
+
+// ---------- Selects ----------
+function fill(sel,opts,val){sel.innerHTML=opts.map(o=>`<option>${esc(o)}</option>`).join('');if(val)sel.value=val;}
+fill($('batType'),Object.keys(BAT),'Basic Neutral');
+fill($('pitType'),Object.keys(PIT),'Basic Balanced');
+function setGoals(){
+  const g=dataMode==='pitcher'
+    ?[['runs','Most runs (expected value)'],['onbase','Reach base'],['hr','Home run']]
+    :[['runs','Fewest runs (expected value)'],['out','Get an out'],['hr','Avoid the home run']];
+  const prev=$('goal').value;
+  $('goal').innerHTML=g.map(([v,t])=>`<option value="${v}">${t}</option>`).join('');
+  if(g.some(x=>x[0]===prev))$('goal').value=prev;
+}
+
+// ---------- Ranges (rulebook: Range System Index) ----------
+function computeRanges(){
+  const bat=BAT[$('batType').value], pit=PIT[$('pitType').value];
+  let r=OUT.map((_,i)=>bat[i]+pit[i]);
+  if($('batHand').value===$('pitHand').value){const b=BONUS[$('bonus').value];r=r.map((v,i)=>v+b[i]);}
+  const pf=[0,1,2,3,4].map(i=>{const v=parseFloat($('pf'+i).value);return isFinite(v)&&v>0?v:1;});
+  if(pf.some(v=>v!==1)){
+    const before=r.slice(0,5).reduce((a,b)=>a+b,0);
+    for(let i=0;i<5;i++)r[i]=Math.round(r[i]*pf[i]);
+    let delta=before-r.slice(0,5).reduce((a,b)=>a+b,0); // >0: hitter lost points, give to pitcher ranges
+    let k=0,guard=0;
+    while(delta!==0&&guard++<5000){
+      const idx=5+(k++%5);
+      if(delta>0){r[idx]++;delta--;}
+      else if(r[idx]>0){r[idx]--;delta++;}
+    }
+  }
+  if($('ifin').checked){r[3]+=18;r[8]=Math.max(0,r[8]-9);r[9]=Math.max(0,r[9]-9);}
+  return r;
+}
+function outcomeTable(){
+  const at=new Array(501);
+  if($('bunt').checked){
+    for(let d=0;d<=500;d++)at[d]=d<=50?'BS':d<=375?'SAC':d<=475?'K':'BO';
+    return {at,ranges:null};
+  }
+  const r=computeRanges();let d=0;
+  r.forEach((n,i)=>{for(let j=0;j<n&&d<=500;j++)at[d++]=OUT[i];});
+  while(d<=500)at[d++]='LGO';
+  return {at,ranges:r};
+}
+function utility(o){
+  const g=$('goal').value;
+  if(dataMode==='pitcher'){
+    if(g==='onbase')return ONBASE.has(o)?1:0;
+    if(g==='hr')return o==='HR'?1:0;
+    return VAL[o];
+  }
+  if(g==='out')return ONBASE.has(o)?0:1;
+  if(g==='hr')return o==='HR'?0:1;
+  return -VAL[o];
+}
+
+// ---------- Data loading ----------
+function resClass(res){
+  const s=String(res||'').toUpperCase().trim();
+  if(!s)return '';
+  if(/^AUTO/.test(s)&&!/BB/.test(s))return 'out';
+  if(/(^|\s)(HR|3B|2B|1B)$/.test(s)||s==='BUNT 1B')return 'hit';
+  if(/BB/.test(s))return 'walk';
+  return 'out';
+}
+function normalize(arr){
+  const rows=arr.map(r=>({
+    league:r.league||'',season:+r.season||0,session:+r.session||0,game:+r.gameID||0,play:+r.playNumber||0,
+    inning:r.inning||'',outs:+r.outs||0,obc:+r.obc||0,hitter:r.hitterName||'',pitcher:r.pitcherName||'',
+    pid:r.pitcherID,hid:r.hitterID,pitch:+r.pitch,swing:+r.swing,
+    result:r.exactResult||r.oldResult||r.result||''
+  }));
+  rows.sort((a,b)=>a.season-b.season||a.session-b.session||a.league.localeCompare(b.league)||a.game-b.game||a.play-b.play);
+  return rows;
+}
+function detectMode(rows){
+  const cnt=key=>{const m=new Map();rows.forEach(r=>m.set(r[key],(m.get(r[key])||0)+1));return [...m.entries()].sort((a,b)=>b[1]-a[1]);};
+  const p=cnt('pitcher'),h=cnt('hitter');
+  const pShare=p.length?p[0][1]/rows.length:0,hShare=h.length?h[0][1]/rows.length:0;
+  return pShare>=hShare?{mode:'pitcher',name:p[0]?p[0][0]:''}:{mode:'batter',name:h[0]?h[0][0]:''};
+}
+function prepare(rows,m){
+  const valid=n=>Number.isFinite(n)&&n>=1&&n<=1000;
+  const out=[];let lastIdxInGame=null,lastGame=null;
+  rows.forEach(r=>{
+    const g=r.league+'|'+r.season+'|'+r.session+'|'+r.game;
+    if(g!==lastGame){lastGame=g;lastIdxInGame=null;}
+    const t=m==='pitcher'?r.pitch:r.swing, o=m==='pitcher'?r.swing:r.pitch;
+    if(!valid(t))return; // autos and intentional walks reveal no number
+    const rec={...r,g,t,o:valid(o)?o:null,cls:resClass(r.result),prev:lastIdxInGame,me:(m==='pitcher'?r.hitter:r.pitcher).toLowerCase()};
+    out.push(rec);lastIdxInGame=out.length-1;
+  });
+  out.forEach(r=>{
+    if(r.prev!=null){const p=out[r.prev];
+      r.dStep=sdelta(r.t,p.t);r.dOpp=p.o!=null?sdelta(r.t,p.o):null;r.prevBin=Math.floor((p.t-1)/100);r.prevCls=p.cls;}
+  });
+  return out;
+}
+function applyCard(c){
+  const bt=BATCODE[c.batType],pt=PITCODE[c.pitchType],bo=BONCODE[c.pitchBonus],hand=/^l/i.test(c.hand||'')?'Left':'Right';
+  // A card fills the side of the matchup that belongs to the scouted player unless it's clearly a hitter card
+  const isPitcher=c.priPos==='P';
+  if(isPitcher||dataMode==='pitcher'&&!R.length){
+    if(pt)$('pitType').value=pt; if(bo)$('bonus').value=bo; $('pitHand').value=hand;
+    return `Filled pitcher card: ${c.playerName} (${pt||'?'}, ${bo||'no bonus'}, ${hand}).`;
+  }
+  if(bt)$('batType').value=bt; $('batHand').value=hand;
+  return `Filled batter card: ${c.playerName} (${bt||'?'}, ${hand}).`;
+}
+function parseText(txt){
+  txt=txt.trim();if(!txt)throw new Error('Paste the JSON from the history link first.');
+  let j;
+  try{j=JSON.parse(txt);}
+  catch(e){
+    try{j=JSON.parse('['+txt.replace(/\]\s*,?\s*\[/g,'],[')+']').flat();}
+    catch(e2){throw new Error('That text is not valid JSON. Copy the whole page from the history link, starting with [ and ending with ].');}
+  }
+  if(!Array.isArray(j))j=Array.isArray(j.data)?j.data:[j];
+  return j;
+}
+function loadFromText(txt,sample){
+  const msg=$('loadMsg');msg.className='msg';
+  try{
+    const j=parseText(txt);
+    const cards=j.filter(x=>x&&x.playerID!=null&&x.pitch===undefined);
+    const pas=j.filter(x=>x&&(x.pitch!==undefined||x.swing!==undefined));
+    const notes=[];
+    if(cards.length){
+      cards.forEach(c=>notes.push(applyCard(c)));
+      if(!$('pid').value&&cards.length===1){$('pid').value=cards[0].playerID;if(!$('pname').value)$('pname').value=cards[0].playerName;updateLinks();}
+    }
+    if(pas.length){
+      const rows=normalize(pas);const d=detectMode(rows);
+      dataMode=d.mode;subject=d.name;R=prepare(rows,dataMode);isSample=!!sample;
+      if(R.length<15)throw new Error(`Only ${R.length} usable numbers found. The sheet needs at least 15 to read habits.`);
+      setGoals();relabel();prefillSituation();
+      notes.unshift(`Loaded ${R.length} ${dataMode==='pitcher'?'pitches':'swings'} for ${subject}${rows.length>R.length?` (${rows.length-R.length} autos or IBBs skipped)`:''}.`);
+      fit();
+    }
+    if(!notes.length)throw new Error('No plate appearances or player cards found in that JSON.');
+    msg.textContent=notes.join(' ');msg.classList.add('ok');
+    render();
+  }catch(e){msg.textContent=e.message;msg.classList.add('err');}
+}
+function updateLinks(){
+  const base='https://www.rslashfakebaseball.com/api';
+  const name=$('pname').value.trim(),id=$('pid').value.trim(),lg=$('league').value;
+  const parts=[];
+  if(name)parts.push(`<div>Find their ID and card: <a href="${base}/players/name/${encodeURIComponent(name)}" target="_blank" rel="noopener">${esc(base)}/players/name/${esc(name)}</a></div>`);
+  if(id)parts.push(`<div>Their ${mode==='pitcher'?'pitch':'swing'} history: <a href="${base}/plateappearances/${mode==='pitcher'?'pitching':'batting'}/${lg}/${encodeURIComponent(id)}" target="_blank" rel="noopener">${esc(base)}/plateappearances/${mode==='pitcher'?'pitching':'batting'}/${lg}/${esc(id)}</a></div>`);
+  parts.push(live?`<p class="hint">Connected to the site's API. Type a name and press Pull from the site.</p>`:`<p class="hint">This copy can't reach the site directly, so open the link, select all, copy, and paste below.${name?'':' Start by typing their name.'}</p>`);
+  $('links').innerHTML=parts.join('');
+}
+function relabel(){
+  const p=dataMode==='pitcher';
+  $('newGameLbl').textContent=p?'First pitch they throw this game':'First swing they take this game';
+  $('lastNumLbl').textContent=p?'Their last pitch':'Their last swing';
+  $('lastOppLbl').textContent=p?'Swing it faced':'Pitch it faced';
+  $('meLbl').textContent=p?'Batter (you)':'Pitcher (you)';
+  $('boardLbl').textContent=p?'Swing':'Pitch';
+}
+function prefillSituation(){
+  const last=R[R.length-1];
+  $('lastNum').value=last.t;$('lastOpp').value=last.o??'';$('lastRes').value=last.cls||'out';
+  $('newGame').checked=true;syncNewGame();
+}
+function syncNewGame(){['lastNum','lastOpp','lastRes'].forEach(id=>$(id).disabled=$('newGame').checked);}
+
+// ---------- Model ----------
+// Each habit turns past numbers into a set of weighted points; a circular kernel smooths them into a density.
+const COMPS=[
+ {k:'uniform',name:'Pure chance',desc:'Baseline'},
+ {k:'career',name:'Career spread',desc:'Where all their numbers land'},
+ {k:'recent',name:'Recent form',desc:'Last 40, newest weighted most'},
+ {k:'step',name:'Step from last',desc:'How far they move from their previous number'},
+ {k:'opp',name:'Reacts to last swing',desc:'Offset from the number they just faced'},
+ {k:'zone',name:'Zone to zone',desc:'Where they go after this hundred'},
+ {k:'after',name:'After a hit, walk or out',desc:'Choices following the last result'},
+ {k:'sit',name:'Outs and runners',desc:'Same outs, same bases empty or not'},
+ {k:'opener',name:'Game openers',desc:'First number of a game'},
+ {k:'me',name:'Against you',desc:'Past numbers in this exact matchup'}
+];
+function pointsFor(i,ctx){
+  // uses R[0..i-1]
+  const res={};
+  const take=(f,min=5)=>{const l=[],w=[];for(let j=0;j<i;j++){const v=f(R[j],j);if(v!=null){l.push(v[0]);w.push(v[1]);}}return l.length>=min?{l,w}:null;};
+  res.career=take(r=>[r.t,1]);
+  {const l=[],w=[];for(let j=Math.max(0,i-40);j<i;j++){l.push(R[j].t);w.push(Math.pow(0.93,i-1-j));}res.recent=l.length>=5?{l,w}:null;}
+  if(!ctx.first&&ctx.last!=null){
+    res.step=take(r=>r.dStep!=null?[wrap(ctx.last+r.dStep),1]:null);
+    const b=Math.floor((ctx.last-1)/100);
+    res.zone=take(r=>r.prevBin===b?[r.t,1]:null,4);
+    if(ctx.lastOpp!=null)res.opp=take(r=>r.dOpp!=null?[wrap(ctx.lastOpp+r.dOpp),1]:null);
+    if(ctx.lastCls)res.after=take(r=>r.prevCls===ctx.lastCls?[r.t,1]:null);
+  }
+  if(ctx.first)res.opener=take(r=>r.prev==null?[r.t,1]:null,4);
+  res.sit=take(r=>r.outs===ctx.outs&&(r.obc>0)===ctx.on?[r.t,1]:null);
+  if(ctx.me)res.me=take(r=>r.me===ctx.me?[r.t,1]:null,3);
+  return res;
+}
+function kernel(sigma){
+  const K=new Float64Array(501),cut=Math.min(500,Math.ceil(4*sigma));
+  for(let d=0;d<=cut;d++)K[d]=Math.exp(-d*d/(2*sigma*sigma));
+  let Z=K[0]+K[500];for(let d=1;d<500;d++)Z+=2*K[d];
+  return {K,Z,cut};
+}
+function densAt(p,x,ker){ // scaled so a uniform density is 1
+  if(!p)return 1;let s=0,W=0;
+  for(let n=0;n<p.l.length;n++){W+=p.w[n];s+=p.w[n]*ker.K[cdist(x,p.l[n])];}
+  return W>0?1000*s/(W*ker.Z):1;
+}
+function ctxOf(i){
+  const r=R[i],p=r.prev!=null?R[r.prev]:null;
+  return {first:p==null,last:p?p.t:null,lastOpp:p?p.o:null,lastCls:p?p.cls:'',outs:r.outs,on:r.obc>0,me:r.me};
+}
+function em(F){
+  const k=COMPS.length,n=F.length;let w=new Array(k).fill(1/k);
+  for(let it=0;it<150;it++){
+    const acc=new Array(k).fill(0);
+    for(const row of F){let s=0;for(let c=0;c<k;c++)s+=w[c]*row[c];for(let c=0;c<k;c++)acc[c]+=w[c]*row[c]/s;}
+    w=acc.map(a=>a/n);
+  }
+  let ll=0;for(const row of F){let s=0;for(let c=0;c<k;c++)s+=w[c]*row[c];ll+=Math.log(s);}
+  return {w,ll:ll/n};
+}
+function gridDensity(pts,w,ker){
+  // mixture density over 1..1000, sums to 1
+  const hist=new Float64Array(1000);let uni=w[0];
+  COMPS.forEach((c,ci)=>{
+    if(ci===0)return;const p=pts[c.k];
+    if(!p){uni+=w[ci];return;}
+    let W=0;for(const x of p.w)W+=x;
+    for(let n=0;n<p.l.length;n++)hist[p.l[n]-1]+=w[ci]*p.w[n]/(W*ker.Z);
+  });
+  const out=new Float64Array(1000);
+  for(let x=0;x<1000;x++){let s=0;for(let d=-ker.cut;d<=ker.cut;d++)s+=ker.K[Math.abs(d)]*hist[(x+d+1000)%1000];out[x]=s+uni/1000;}
+  let tot=0;for(const v of out)tot+=v;for(let x=0;x<1000;x++)out[x]/=tot;
+  return out;
+}
+function fit(){
+  const start=Math.max(10,R.length-500);
+  const tests=[];for(let i=start;i<R.length;i++)tests.push(i);
+  const pts=tests.map(i=>pointsFor(i,ctxOf(i)));
+  let best=null;
+  for(const sigma of [20,30,45,70]){
+    const ker=kernel(sigma);
+    const F=tests.map((i,n)=>COMPS.map(c=>c.k==='uniform'?1:densAt(pts[n][c.k],R[i].t,ker)));
+    const r=em(F);
+    if(!best||r.ll>best.ll)best={...r,sigma,ker};
+  }
+  // Walk-forward check of the peak call on the most recent numbers
+  const bt=tests.slice(-150);let sumD=0,w100=0;
+  bt.forEach(i=>{
+    const n=tests.indexOf(i);const dens=gridDensity(pts[n],best.w,best.ker);
+    let m=0;for(let x=1;x<1000;x++)if(dens[x]>dens[m])m=x;
+    const d=cdist(m+1,R[i].t);sumD+=d;if(d<=100)w100++;
+  });
+  model={w:best.w,sigma:best.sigma,ker:best.ker,ll:best.ll,btN:bt.length,btAvg:bt.length?sumD/bt.length:null,bt100:bt.length?w100/bt.length:null};
+}
+function liveCtx(){
+  const first=$('newGame').checked;
+  const n=v=>{const x=parseInt(v,10);return x>=1&&x<=1000?x:null;};
+  return {first,last:first?null:n($('lastNum').value),lastOpp:first?null:n($('lastOpp').value),lastCls:first?'':$('lastRes').value,
+    outs:+$('outs').value,on:$('runners').value==='1',me:$('me').value.trim().toLowerCase()};
+}
+
+// ---------- Render ----------
+function render(){
+  if(!R.length||!model){return;}
+  $('sampleNote').hidden=!isSample;
+  const ctx=liveCtx();
+  const pts=pointsFor(R.length,ctx);
+  const P=gridDensity(pts,model.w,model.ker);
+  const {at,ranges}=outcomeTable();
+  const U=at.map(utility);
+  const score=new Float64Array(1000);
+  for(let s=0;s<1000;s++){let v=0;for(let p=0;p<1000;p++)v+=P[p]*U[cdist(s,p)];score[s]=v;}
+  const order=[...score.keys()].sort((a,b)=>score[b]-score[a]);
+  const picks=[];for(const s of order){if(picks.every(q=>cdist(q,s)>=40))picks.push(s);if(picks.length>=6)break;}
+  if(chosen==null||!picks.map(x=>x+1).includes(chosen))chosen=picks[0]+1;
+  const s0=chosen-1;
+  // outcome probabilities for the chosen number
+  const prob={};for(let p=0;p<1000;p++){const o=at[cdist(s0,p)];prob[o]=(prob[o]||0)+P[p];}
+  const sum=set=>Object.entries(prob).reduce((a,[o,v])=>a+(set(o)?v:0),0);
+  const ev=Object.entries(prob).reduce((a,[o,v])=>a+v*VAL[o],0);
+  // baseline: same matchup against a pure guess
+  let base={};for(let d=0;d<=500;d++){const o=at[d];base[o]=(base[o]||0)+(d===0||d===500?1:2)/1000;}
+  const baseOn=Object.entries(base).reduce((a,[o,v])=>a+(ONBASE.has(o)?v:0),0);
+  const baseEV=Object.entries(base).reduce((a,[o,v])=>a+v*VAL[o],0);
+
+  $('bestNum').textContent=chosen;
+  const p=dataMode==='pitcher';
+  $('who').textContent=(p?'Swing vs ':'Pitch vs ')+subject;
+  const lift=model.bt100!=null?model.bt100/0.2:1;
+  const strength=lift>=1.35?['strong','Readable pitcher']:lift>=1.1?['','Some tells']:['weak','Close to random'];
+  if(!p)strength[1]=strength[1].replace('pitcher','batter');
+  $('pills').innerHTML=[
+    `<span class="pill ${strength[0]}">${strength[1]}</span>`,
+    `<span class="pill">${R.length} ${p?'pitches':'swings'} on file</span>`,
+    ctx.first?`<span class="pill">Game opener</span>`:(ctx.last?`<span class="pill">After ${ctx.last}</span>`:''),
+    $('bunt').checked?`<span class="pill">Bunt</span>`:''
+  ].join('');
+  const evShown=p?ev:-ev, baseShown=p?baseEV:-baseEV;
+  $('probs').innerHTML=[
+    [pct(sum(o=>o==='HR'),1),p?'Home run':'Homer allowed'],
+    [pct(sum(o=>HITS.has(o))),p?'Hit':'Hit allowed'],
+    [pct(sum(o=>ONBASE.has(o))),`On base (guess: ${pct(baseOn)})`],
+    [(evShown>=0?'+':'')+evShown.toFixed(3),`Run value${p?'':' saved'} (guess: ${(baseShown>=0?'+':'')+baseShown.toFixed(3)})`]
+  ].map(([b,s])=>`<div><b>${b}</b><span>${s}</span></div>`).join('');
+  $('alts').innerHTML='<span class="hint">Other good numbers:</span>'+picks.map(s=>`<button type="button" class="alt${s+1===chosen?' on':''}" data-n="${s+1}">${s+1}</button>`).join('');
+
+  drawChart(P,at,s0);
+  // drivers
+  const ws=COMPS.map((c,i)=>({c,w:model.w[i],live:c.k==='uniform'||!!pts[c.k]})).sort((a,b)=>b.w-a.w);
+  const mx=Math.max(...ws.map(x=>x.w));
+  $('drivers').innerHTML=ws.filter(x=>x.w>=0.01).map(x=>`<div class="bar"><div class="t"><span>${x.c.name}</span><small>${x.live?x.c.desc:'not in play now'}</small></div><div class="v">${pct(x.w)}</div><div class="track"><div class="fill" style="width:${(100*x.w/mx).toFixed(1)}%;${x.live?'':'opacity:.35'}"></div></div></div>`).join('');
+  // backtest
+  const skill=Math.exp(model.ll);
+  $('backtest').innerHTML=[
+    [model.btAvg!=null?model.btAvg.toFixed(0):'—','Average miss of the top call','random guess: 250'],
+    [model.bt100!=null?pct(model.bt100):'—','Landed within 100','random guess: 20%'],
+    [skill.toFixed(2)+'×','Sharper than chance','1.00× means no edge'],
+    ['±'+model.sigma,'Smoothing width','picked automatically']
+  ].map(([b,s,e])=>`<div class="stat"><b>${b}</b><span>${s}</span><br><em>${e}</em></div>`).join('');
+  $('btNote').textContent=`Replayed their last ${model.btN} ${p?'pitches':'swings'}, calling each one using only what came before it.${lift<1.1?' This player looks close to random, so treat the suggestion as a coin flip with slightly better odds.':''}`;
+  drawZones();
+  drawHabits();
+  drawLog();
+  lsSet('scout.goal',$('goal').value);
+}
+function drawChart(P,at,s0){
+  const W=1000,H=180,X0=30,Y0=10;
+  let mx=0;for(const v of P)mx=Math.max(mx,v);mx=Math.max(mx,0.0015);
+  const y=v=>Y0+H-(v/mx)*H*0.95;
+  let path=`M${X0},${Y0+H}`;for(let x=0;x<1000;x++)path+=` L${X0+x+0.5},${y(P[x]).toFixed(1)}`;path+=` L${X0+W},${Y0+H} Z`;
+  // outcome bands around the chosen number: shade where a pitch would give a hit (or walk)
+  let bands='';
+  const color=o=>o==='HR'?'var(--bad)':HITS.has(o)?'var(--bulb)':o==='BB'?'var(--warn)':null;
+  let runStart=null,runColor=null;
+  for(let x=0;x<=1000;x++){
+    const c=x<1000?color(at[cdist(s0,x)]):null;
+    if(c!==runColor){
+      if(runColor)bands+=`<rect x="${X0+runStart}" y="${Y0}" width="${x-runStart}" height="${H}" fill="${runColor}" opacity="0.14"/>`;
+      runStart=x;runColor=c;
+    }
+  }
+  const recent=R.slice(-30);
+  const rug=recent.map((r,i)=>`<line x1="${X0+r.t-0.5}" x2="${X0+r.t-0.5}" y1="${Y0+H+4}" y2="${Y0+H+16}" stroke="var(--field)" stroke-width="2" opacity="${(0.25+0.75*(i+1)/recent.length).toFixed(2)}"/>`).join('');
+  const ticks=[1,100,200,300,400,500,600,700,800,900,1000].map(t=>`<line x1="${X0+t-0.5}" x2="${X0+t-0.5}" y1="${Y0}" y2="${Y0+H}" stroke="var(--line)" stroke-width="1"/><text x="${X0+t-0.5}" y="${Y0+H+30}" text-anchor="middle">${t}</text>`).join('');
+  const sx=X0+s0+0.5;
+  $('chart').innerHTML=`${ticks}${bands}<path d="${path}" fill="var(--field)" fill-opacity="0.22" stroke="var(--field)" stroke-width="1.6"/>${rug}
+   <line x1="${sx}" x2="${sx}" y1="${Y0-2}" y2="${Y0+H}" stroke="var(--bulb)" stroke-width="2.5"/>
+   <text x="${Math.min(Math.max(sx,X0+30),X0+W-30)}" y="${Y0+12}" text-anchor="middle" style="fill:var(--bulb);font-weight:600">${s0+1}</text>`;
+  const p=dataMode==='pitcher';
+  $('legend').innerHTML=`<span><i style="background:var(--field);opacity:.5"></i>Chance of their next ${p?'pitch':'swing'}</span><span><i style="background:var(--bad);opacity:.35"></i>${p?'Pitch here':'Swing here'} = home run</span><span><i style="background:var(--bulb);opacity:.35"></i>= other hit</span><span><i style="background:var(--warn);opacity:.35"></i>= walk</span><span><i style="background:var(--field)"></i>Their last 30 (ticks)</span>`;
+}
+function drawZones(){
+  const all=new Array(10).fill(0),rec=new Array(10).fill(0);
+  R.forEach(r=>all[Math.floor((r.t-1)/100)]++);
+  const last=R.slice(-30);last.forEach(r=>rec[Math.floor((r.t-1)/100)]++);
+  const a=all.map(v=>v/R.length),b=rec.map(v=>v/last.length);
+  const mx=Math.max(0.2,...a,...b);const H=120,Y0=10,X0=34,bw=48;
+  let s='';
+  [0.1,0.2,0.3,0.4].filter(v=>v<=mx).forEach(v=>{const yy=Y0+H-v/mx*H;s+=`<line x1="${X0}" x2="${X0+480}" y1="${yy}" y2="${yy}" stroke="var(--line)" ${v===0.1?'stroke-dasharray="4 3"':''}/><text x="${X0-4}" y="${yy+4}" text-anchor="end">${v*100}%</text>`;});
+  for(let i=0;i<10;i++){
+    const x=X0+i*bw;
+    s+=`<rect x="${x+6}" y="${Y0+H-a[i]/mx*H}" width="17" height="${a[i]/mx*H}" fill="var(--field)" rx="2"/>`;
+    s+=`<rect x="${x+25}" y="${Y0+H-b[i]/mx*H}" width="17" height="${b[i]/mx*H}" fill="var(--bulb)" rx="2"/>`;
+    s+=`<text x="${x+24}" y="${Y0+H+16}" text-anchor="middle">${i*100+1}</text>`;
+  }
+  s+=`<text x="${X0+480}" y="${Y0+H+32}" text-anchor="end">dashed line = even split (10%)</text>`;
+  $('zones').innerHTML=s;
+}
+function drawHabits(){
+  const steps=R.filter(r=>r.dStep!=null).map(r=>Math.abs(r.dStep));
+  const avgStep=steps.length?steps.reduce((a,b)=>a+b,0)/steps.length:null;
+  const near=steps.length?steps.filter(d=>d<=100).length/steps.length:null;
+  const repeat=steps.length?steps.filter(d=>d===0).length/steps.length:null;
+  const round0=R.filter(r=>r.t%10===0).length/R.length;
+  const round50=R.filter(r=>r.t%50===0).length/R.length;
+  const counts=new Map();R.forEach(r=>counts.set(r.t,(counts.get(r.t)||0)+1));
+  const favs=[...counts.entries()].filter(e=>e[1]>=2).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  const opp=R.filter(r=>r.dOpp!=null).map(r=>Math.abs(r.dOpp));
+  const nearOpp=opp.length?opp.filter(d=>d<=100).length/opp.length:null;
+  const p=dataMode==='pitcher';
+  const items=[
+    [avgStep!=null?avgStep.toFixed(0):'—','Average move between numbers','random: 250'],
+    [near!=null?pct(near):'—','Stays within 100 of last','random: 20%'],
+    [nearOpp!=null?pct(nearOpp):'—',`Within 100 of the ${p?'swing':'pitch'} they just saw`,'random: 20%'],
+    [pct(round0),'Ends in 0','random: 10%'],
+    [pct(round50,1),'Multiple of 50','random: 2%'],
+    [repeat!=null?pct(repeat,1):'—','Repeats the exact number','random: 0.1%'],
+    [favs.length?favs.map(f=>f[0]).join(', '):'none','Favorite numbers',favs.length?favs.map(f=>f[1]+'×').join(', '):'no repeats'],
+  ];
+  $('habits').innerHTML=items.map(([b,s,e])=>`<div class="stat"><b>${esc(b)}</b><span>${s}</span><br><em>${e}</em></div>`).join('');
+}
+function drawLog(){
+  const p=dataMode==='pitcher';
+  const rows=R.slice(-15).reverse();
+  $('log').innerHTML=`<thead><tr><th>Season.Session</th><th>Inn</th><th>${p?'Batter':'Pitcher'}</th><th style="text-align:right">${p?'Pitch':'Swing'}</th><th style="text-align:right">${p?'Swing':'Pitch'}</th><th style="text-align:right">Diff</th><th>Result</th></tr></thead><tbody>`+
+    rows.map(r=>`<tr><td>${r.league?esc(r.league.toUpperCase())+' ':''}S${r.season}.${r.session}</td><td>${esc(r.inning)}</td><td>${esc(p?r.hitter:r.pitcher)}</td><td class="n"><b>${r.t}</b></td><td class="n">${r.o??'—'}</td><td class="n">${r.o!=null?cdist(r.t,r.o):'—'}</td><td class="r-${r.cls}">${esc(r.result)}</td></tr>`).join('')+'</tbody>';
+}
+
+// ---------- Example data (a partial public pull: Whitt Bass, MLR) ----------
+const SAMPLE=`2,12,125,1,T1,0,0,Scherbie Fully-Loaded,212,345,BB
+2,12,125,2,T1,0,1,Whit Merto,26,666,DP
+2,12,125,3,T1,2,0,Nikolas Romero,270,690,LGO
+2,12,125,15,T2,0,0,Sam Smith,456,815,PO
+2,12,125,16,T2,1,0,Bernie Petrol,815,538,K
+2,12,125,17,T2,2,0,Earl Leicester,0,0,Auto K
+2,12,125,21,T3,0,0,Nikki Falke,369,747,RGO
+2,12,125,22,T3,1,0,Indy Sayne,991,498,LGO
+2,12,125,23,T3,2,0,Meerkat Timmons,201,560,RGO
+2,12,125,27,T4,0,0,Scherbie Fully-Loaded,270,205,1B
+2,12,125,28,T4,0,1,Whit Merto,335,401,1B
+2,12,125,29,T4,0,4,Nikolas Romero,57,513,DP
+2,12,125,30,T4,2,3,Sam Smith,259,919,K
+2,12,125,35,T5,0,0,Bernie Petrol,599,138,LGO
+2,12,125,36,T5,1,0,Earl Leicester,138,69,2B
+2,12,125,42,T6,0,0,Meerkat Timmons,952,666,K
+2,12,125,43,T6,1,0,Scherbie Fully-Loaded,666,225,LGO
+2,12,125,44,T6,2,0,Whit Merto,225,165,1B
+2,12,125,45,T6,2,1,Nikolas Romero,132,675,LGO
+2,14,143,1,T1,0,0,Nate Lewis,770,813,1B
+2,14,143,2,T1,0,1,Trey Rangers,583,122,DP
+2,14,143,3,T1,2,0,King Fielder,701,100,RGO
+2,14,143,10,T2,0,0,Jake Blee,501,763,K
+2,14,143,11,T2,1,0,Karl Jernigan,131,215,1B
+2,14,143,12,T2,1,1,Paddy O'Sullivan,281,699,DP
+2,14,143,18,T3,0,0,Charles Lindberg,980,987,HR
+2,14,143,19,T3,0,0,Mike T. Thumb,992,476,LGO
+2,14,143,20,T3,1,0,Doob Tuber,204,754,LGO
+2,14,143,21,T3,2,0,Nate Lewis,918,444,LGO
+2,14,143,28,T4,0,0,Trey Rangers,760,394,RGO
+2,14,143,29,T4,1,0,King Fielder,299,804,LGO
+2,14,143,30,T4,2,0,Jake Blee,286,336,2B
+2,14,143,31,T4,2,2,Karl Jernigan,125,697,LGO
+2,14,143,36,T5,0,0,Paddy O'Sullivan,444,750,K
+2,14,143,37,T5,1,0,Charles Lindberg,333,435,1B
+2,14,143,38,T5,1,1,Mike T. Thumb,130,430,K
+2,14,143,39,T5,2,1,Doob Tuber,619,226,RGO
+2,15,159,32,B4,2,4,Jake Wilson,800,236,LGO
+2,15,159,36,B5,0,0,B.B. Bambino Jr.,364,738,RGO
+2,15,159,37,B5,1,0,KC Bats,10,463,LGO
+2,15,159,38,B5,2,0,Miguel Snow,45,420,RGO
+2,16,165,4,B1,0,0,Max Wasson,712,308,RGO
+2,16,165,5,B1,1,0,Phoenix McDouglas,178,250,1B
+2,16,165,6,B1,1,1,Dog Man,445,572,BB
+2,16,165,7,B1,1,4,Richard Firr,254,222,1B
+2,16,165,8,B1,1,7,Justin Dingers,254,110,BB
+2,16,165,9,B1,1,7,Ivan Yakenov,415,825,DP
+2,16,165,13,B2,0,0,Shiny Tenson,20,500,LGO
+2,16,165,14,B2,1,0,Darren Dingerball,830,801,2B
+2,16,165,15,B2,1,2,Rusty DeMico,63,104,2B
+2,16,165,16,B2,1,2,Max Wasson,240,485,FO
+2,16,165,17,B2,2,2,Phoenix McDouglas,119,835,K
+2,16,165,25,B3,0,0,Dog Man,201,155,1B
+2,16,165,26,B3,0,1,Richard Firr,311,763,DP
+2,16,165,27,B3,2,0,Justin Dingers,408,278,BB
+2,16,165,28,B3,2,1,Ivan Yakenov,48,155,1B
+2,16,165,29,B3,2,5,Shiny Tenson,744,250,LGO
+2,16,165,33,B4,0,0,Darren Dingerball,566,701,BB
+2,16,165,34,B4,0,1,Rusty DeMico,899,610,K
+2,16,165,35,B4,1,1,Max Wasson,89,550,DP
+2,16,165,43,B5,0,0,Phoenix McDouglas,366,444,1B
+2,16,165,44,B5,0,1,Dog Man,162,282,1B
+2,16,165,45,B5,0,4,Richard Firr,62,735,DP
+2,16,165,46,B5,2,3,Justin Dingers,515,1,LGO
+2,16,165,51,B6,0,0,Ivan Yakenov,899,125,FO
+2,16,165,52,B6,1,0,Jack Kasutori,0,0,IBB
+2,16,165,53,B6,1,1,Darren Dingerball,121,27,1B
+2,16,165,54,B6,1,4,Rusty DeMico,601,315,K
+2,16,165,55,B6,2,4,Max Wasson,2,795,FO
+2,17,175,37,T5,1,1,Hes Nahstee,939,676,FO
+2,17,175,38,T5,2,1,Emer Bock,105,6,1B
+2,17,175,39,T5,2,5,Jimmy Johns,333,389,1B
+2,17,175,40,T5,2,5,Joey Bagpipes,129,815,K
+2,17,175,44,T6,0,0,Buckeye Logan II,555,799,FO
+2,17,175,45,T6,1,0,Moose McCracken,443,822,RGO
+2,17,175,46,T6,2,0,Gare Doctor,511,667,BB
+2,17,175,47,T6,2,1,Junior Biggins,340,842,LGO
+2,18,188,5,B1,1,0,Amir Valerie Hurwitz,302,74,FO
+2,18,188,6,B1,2,0,Autumn Halladay,132,778,RGO
+2,18,188,10,B2,0,0,Casey Jones,26,775,K
+2,18,188,12,B2,2,0,Trontavious Saddlebags,528,443,1B
+2,18,188,13,B2,2,1,Arata Hightower,568,46,LGO
+2,18,188,17,B3,0,0,Gil Metz,5,730,K
+2,18,188,18,B3,1,0,Patrick Stump,444,50,RGO
+2,18,188,19,B3,2,0,J.J. Guemes,555,333,FO
+2,18,188,23,B4,0,0,Amir Valerie Hurwitz,527,717,FO
+2,18,188,24,B4,1,0,Autumn Halladay,112,220,1B
+2,18,188,25,B4,1,1,Casey Jones,246,141,1B
+2,18,188,27,B4,2,4,Trontavious Saddlebags,45,323,K
+2,18,188,31,B5,0,0,Arata Hightower,910,763,BB
+2,18,188,32,B5,0,1,Gil Metz,330,950,DP
+2,18,188,33,B5,2,0,Patrick Stump,694,885,FO
+2,18,188,38,B6,0,0,J.J. Guemes,233,1,FO
+2,18,188,39,B6,1,0,Amir Valerie Hurwitz,115,174,1B
+2,18,188,40,B6,1,1,Kevin Arianna,850,418,DP
+2,18,188,46,B7,0,2,Casey Jones,220,913,K
+3,2,13,1,T1,0,0,Cam Singleton,170,253,1B
+3,2,13,2,T1,0,1,Rapid Eagle,431,85,K
+3,2,13,3,T1,1,1,dednuts,365,172,K
+3,2,13,4,T1,2,1,Rich Mahogany,55,747,PO
+3,2,13,9,T2,0,0,Dirtbag Darrell,850,325,LGO
+3,2,13,10,T2,1,0,Benjamin 'Benji' Bjorn,276,920,PO
+3,2,13,11,T2,2,0,Hingle McCringleberry,444,1000,LGO`;
+function sampleJSON(){
+  return JSON.stringify(SAMPLE.split('\n').map(l=>{const f=l.split(',');return {league:'mlr',season:+f[0],session:+f[1],gameID:+f[2],playNumber:+f[3],inning:f[4],outs:+f[5],obc:+f[6],hitterName:f[7],pitcherName:'Whitt Bass',pitcherID:39,pitch:+f[8],swing:+f[9],oldResult:f[10]};}));
+}
+
+// ---------- Wiring ----------
+function setMode(m){mode=m;$('mode-p').setAttribute('aria-pressed',m==='pitcher');$('mode-b').setAttribute('aria-pressed',m==='batter');updateLinks();}
+$('mode-p').onclick=()=>setMode('pitcher');$('mode-b').onclick=()=>setMode('batter');
+['pname','pid','league'].forEach(id=>$(id).addEventListener('input',updateLinks));
+$('load').onclick=()=>{chosen=null;loadFromText($('paste').value,false);};
+$('loadSample').onclick=()=>{chosen=null;$('pitType').value='No Homers';$('bonus').value='Anti-Homer';$('pitHand').value='Right';loadFromText(sampleJSON(),true);};
+$('file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{chosen=null;$('paste').value=String(rd.result).slice(0,200000);loadFromText(String(rd.result),false);};rd.readAsText(f);};
+$('alts').addEventListener('click',e=>{const b=e.target.closest('.alt');if(b){chosen=+b.dataset.n;render();}});
+const rerender=()=>{chosen=null;render();};
+['batType','batHand','pitType','pitHand','bonus','goal','ifin','bunt','outs','runners','lastRes','pf0','pf1','pf2','pf3','pf4'].forEach(id=>$(id).addEventListener('change',rerender));
+['lastNum','lastOpp','me'].forEach(id=>$(id).addEventListener('input',rerender));
+$('newGame').addEventListener('change',()=>{syncNewGame();rerender();});
+
+// ---------- Live API ----------
+const API='https://www.rslashfakebaseball.com/api';
+let live=false,players=[];
+async function apiGet(path,ms=15000){
+  const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),ms);
+  try{const r=await fetch(API+path,{signal:ctl.signal});if(!r.ok)throw new Error('The site answered '+r.status+' for '+path);return await r.json();}
+  finally{clearTimeout(t);}
+}
+async function probeLive(){
+  try{
+    const list=await apiGet('/players',8000);
+    if(!Array.isArray(list))return;
+    live=true;players=list;
+    $('playerList').innerHTML=list.filter(p=>p&&p.playerName).map(p=>`<option value="${esc(p.playerName)}">`).join('');
+    $('liveRow').hidden=false;updateLinks();
+  }catch(e){live=false;}
+}
+async function pullLive(){
+  const msg=$('loadMsg');msg.className='msg';
+  const name=$('pname').value.trim();let id=$('pid').value.trim();
+  try{
+    let card=null;
+    if(name){
+      card=players.find(p=>p.playerName&&p.playerName.toLowerCase()===name.toLowerCase())||null;
+      if(!card){msg.textContent='Looking up '+name+'…';card=await apiGet('/players/name/'+encodeURIComponent(name));}
+      if(Array.isArray(card))card=card[0];
+      if(!card||card.playerID==null)throw new Error('No player named "'+name+'" on the site. Check the spelling.');
+      id=String(card.playerID);$('pid').value=id;
+    }
+    if(!id)throw new Error('Type a player name first.');
+    msg.textContent='Pulling '+(mode==='pitcher'?'pitch':'swing')+' history…';
+    const pas=await apiGet(`/plateappearances/${mode==='pitcher'?'pitching':'batting'}/${$('league').value}/${encodeURIComponent(id)}`,30000);
+    if(!Array.isArray(pas)||!pas.length)throw new Error('The site has no '+$('league').selectedOptions[0].text+' history for this player. Try the other league.');
+    chosen=null;
+    loadFromText(JSON.stringify(card?[card,...pas]:pas),false);
+    updateLinks();
+  }catch(e){msg.textContent=e.name==='AbortError'?'The site took too long to answer. Try again.':e.message;msg.classList.add('err');}
+}
+$('fetchLive').onclick=pullLive;
+$('pname').addEventListener('keydown',e=>{if(e.key==='Enter'&&live)pullLive();});
+
+setGoals();
+const g=lsGet('scout.goal');if(g&&[...$('goal').options].some(o=>o.value===g))$('goal').value=g;
+updateLinks();
+$('pname').value='';
+// Open in a working state with the marked example
+$('pitType').value='No Homers';$('bonus').value='Anti-Homer';$('pitHand').value='Right';
+loadFromText(sampleJSON(),true);
+$('loadMsg').textContent='Example loaded. Type your opponent\'s name above to get their links.';
+$('loadMsg').className='msg';
+probeLive();
+})();
+</script>
+</body></html>
