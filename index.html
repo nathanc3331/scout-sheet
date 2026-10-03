@@ -242,6 +242,12 @@ td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
         </section>
       </div>
 
+      <section class="box" aria-labelledby="h-trend">
+        <h2 id="h-trend">Last 20 numbers and the change between them</h2>
+        <svg class="chart" id="trend" viewBox="0 0 1040 330" role="img" aria-label="Recent numbers and the signed change from each one to the next"></svg>
+        <div class="legend"><span><i style="background:var(--field)"></i>Moved up</span><span><i style="background:var(--bulb)"></i>Moved down</span><span>Change wraps around 1000, so 950 to 50 counts as +100. Dashed line = new game.</span></div>
+      </section>
+
       <section class="box" aria-labelledby="h-log">
         <h2 id="h-log">Recent history</h2>
         <div class="tbl"><table id="log"></table></div>
@@ -625,6 +631,7 @@ function render(){
   $('btNote').textContent=`Replayed their last ${model.btN} ${p?'pitches':'swings'}, calling each one using only what came before it.${lift<1.1?' This player looks close to random, so treat the suggestion as a coin flip with slightly better odds.':''}`;
   drawZones();
   drawHabits();
+  drawTrend();
   drawLog();
   lsSet('scout.goal',$('goal').value);
 }
@@ -694,11 +701,40 @@ function drawHabits(){
   ];
   $('habits').innerHTML=items.map(([b,s,e])=>`<div class="stat"><b>${esc(b)}</b><span>${s}</span><br><em>${e}</em></div>`).join('');
 }
+function drawTrend(){
+  const rows=R.slice(-20),n=rows.length;
+  const X0=50,W=976,PAD=22,step=n>1?(W-2*PAD)/(n-1):0,xs=i=>n>1?X0+PAD+i*step:X0+W/2;
+  const T0=12,TH=150,ty=v=>T0+TH-(v-1)/999*TH;
+  const D0=222,DH=90,dm=D0+DH/2,dy=v=>dm-v/500*(DH/2);
+  let s='';
+  [1,250,500,750,1000].forEach(v=>{s+=`<line x1="${X0}" x2="${X0+W}" y1="${ty(v)}" y2="${ty(v)}" stroke="var(--line)"/><text x="${X0-6}" y="${ty(v)+4}" text-anchor="end">${v}</text>`;});
+  [-500,-250,0,250,500].forEach(v=>{s+=`<line x1="${X0}" x2="${X0+W}" y1="${dy(v)}" y2="${dy(v)}" stroke="var(--line)" ${v?'':'stroke-width="1.5"'}/><text x="${X0-6}" y="${dy(v)+4}" text-anchor="end">${v>0?'+':''}${v}</text>`;});
+  s+=`<text x="${X0+W}" y="${D0-14}" text-anchor="end" style="fill:var(--ink)">Change from the previous number</text>`;
+  rows.forEach((r,i)=>{if(i&&r.prev==null){const x=xs(i)-step/2;s+=`<line x1="${x}" x2="${x}" y1="${T0}" y2="${D0+DH}" stroke="var(--muted)" stroke-dasharray="4 4"/>`;}});
+  // numbers: line within a game, dots always
+  let path='';rows.forEach((r,i)=>{path+=(i&&r.prev!=null?' L':' M')+xs(i).toFixed(1)+','+ty(r.t).toFixed(1);});
+  s+=`<path d="${path}" fill="none" stroke="var(--field)" stroke-width="2"/>`;
+  const bw=Math.max(6,Math.min(28,step*0.6));
+  rows.forEach((r,i)=>{
+    const x=xs(i),last=i===n-1;
+    s+=`<circle cx="${x}" cy="${ty(r.t)}" r="${last?6:4}" fill="${last?'var(--bulb)':'var(--field)'}" stroke="var(--panel)" stroke-width="1.5"><title>${r.t}${r.result?' · '+esc(r.result):''}</title></circle>`;
+    s+=`<text x="${x}" y="${ty(r.t)+(r.t>900?16:-9)}" text-anchor="middle" style="fill:var(--ink)">${r.t}</text>`;
+    if(r.dStep!=null&&r.prev!=null){
+      const d=r.dStep,y1=dy(Math.max(d,0)),h=Math.max(1,Math.abs(dy(d)-dm));
+      s+=`<rect x="${x-bw/2}" y="${d>=0?y1:dm}" width="${bw}" height="${h}" rx="2" fill="${d>=0?'var(--field)':'var(--bulb)'}"><title>${rows[i-1]?rows[i-1].t:''} to ${r.t}: ${d>0?'+':''}${d}</title></rect>`;
+      s+=`<text x="${x}" y="${d>=0?dy(d)-4:dy(d)+12}" text-anchor="middle">${d>0?'+':''}${d}</text>`;
+    }else{
+      s+=`<text x="${x}" y="${dm+4}" text-anchor="middle">new</text>`;
+    }
+  });
+  if(!n)s=`<text x="520" y="160" text-anchor="middle">No numbers loaded yet</text>`;
+  $('trend').innerHTML=s;
+}
 function drawLog(){
   const p=dataMode==='pitcher';
   const rows=R.slice(-15).reverse();
-  $('log').innerHTML=`<thead><tr><th>Season.Session</th><th>Inn</th><th>${p?'Batter':'Pitcher'}</th><th style="text-align:right">${p?'Pitch':'Swing'}</th><th style="text-align:right">${p?'Swing':'Pitch'}</th><th style="text-align:right">Diff</th><th>Result</th></tr></thead><tbody>`+
-    rows.map(r=>`<tr><td>${r.league?esc(r.league.toUpperCase())+' ':''}S${r.season}.${r.session}</td><td>${esc(r.inning)}</td><td>${esc(p?r.hitter:r.pitcher)}</td><td class="n"><b>${r.t}</b></td><td class="n">${r.o??'—'}</td><td class="n">${r.o!=null?cdist(r.t,r.o):'—'}</td><td class="r-${r.cls}">${esc(r.result)}</td></tr>`).join('')+'</tbody>';
+  $('log').innerHTML=`<thead><tr><th>Season.Session</th><th>Inn</th><th>${p?'Batter':'Pitcher'}</th><th style="text-align:right">${p?'Pitch':'Swing'}</th><th style="text-align:right">${p?'Swing':'Pitch'}</th><th style="text-align:right">Diff</th><th style="text-align:right">Δ</th><th>Result</th></tr></thead><tbody>`+
+    rows.map(r=>`<tr><td>${r.league?esc(r.league.toUpperCase())+' ':''}S${r.season}.${r.session}</td><td>${esc(r.inning)}</td><td>${esc(p?r.hitter:r.pitcher)}</td><td class="n"><b>${r.t}</b></td><td class="n">${r.o??'—'}</td><td class="n">${r.o!=null?cdist(r.t,r.o):'—'}</td><td class="n">${r.prev!=null&&r.dStep!=null?(r.dStep>0?'+':'')+r.dStep:'—'}</td><td class="r-${r.cls}">${esc(r.result)}</td></tr>`).join('')+'</tbody>';
 }
 
 // ---------- Example data (a partial public pull: Whitt Bass, MLR) ----------
