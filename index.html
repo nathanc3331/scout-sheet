@@ -825,14 +825,23 @@ $('newGame').addEventListener('change',()=>{syncNewGame();rerender();});
 // ---------- Live API ----------
 const API='https://www.rslashfakebaseball.com/api';
 let live=false,players=[];
-async function apiGet(path,ms=15000){
+// The league site doesn't let other web pages read its API, so requests go through
+// Nathan's own Google Apps Script relay (source: relay.gs in this repo).
+const RELAY='https://script.google.com/macros/s/AKfycbxIoWz17KLGa1j1DePI88SnNHJDGtoTqLe7XDB9dN-RkTOUXtcPXKO9N2Iw-xhxhw4f/exec';
+async function apiGet(path,ms=20000){
   const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),ms);
-  try{const r=await fetch(API+path,{signal:ctl.signal});if(!r.ok)throw new Error('The site answered '+r.status+' for '+path);return await r.json();}
+  try{
+    const r=await fetch(RELAY+'?path='+encodeURIComponent(path),{signal:ctl.signal});
+    if(!r.ok)throw new Error('The relay answered '+r.status+' for '+path);
+    const data=await r.json();
+    if(data&&!Array.isArray(data)&&data.error)throw new Error('The site could not answer for '+path+' ('+data.error+').');
+    return data;
+  }
   finally{clearTimeout(t);}
 }
 async function probeLive(){
   try{
-    const list=await apiGet('/players',8000);
+    const list=await apiGet('/players',25000);
     if(!Array.isArray(list))return;
     live=true;players=list;
     $('playerList').innerHTML=list.filter(p=>p&&p.playerName).map(p=>`<option value="${esc(p.playerName)}">`).join('');
