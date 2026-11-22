@@ -864,16 +864,32 @@ let live=false,players=[];
 // The league site doesn't let other web pages read its API, so requests go through
 // Nathan's own Google Apps Script relay (source: relay.gs in this repo).
 const RELAY='https://script.google.com/macros/s/AKfycbxIoWz17KLGa1j1DePI88SnNHJDGtoTqLe7XDB9dN-RkTOUXtcPXKO9N2Iw-xhxhw4f/exec';
-async function apiGet(path,ms=20000){
+async function relayOnce(path,ms){
   const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),ms);
   try{
     const r=await fetch(RELAY+'?path='+encodeURIComponent(path),{signal:ctl.signal});
     if(!r.ok)throw new Error('The relay answered '+r.status+' for '+path);
-    const data=await r.json();
-    if(data&&!Array.isArray(data)&&data.error)throw new Error('The site could not answer for '+path+' ('+data.error+').');
+    const txt=await r.text();
+    let data;try{data=JSON.parse(txt);}catch(e){throw new Error('The relay sent back something that is not data. Open the relay link in a new tab to see what Google says.');}
+    if(data&&!Array.isArray(data)&&data.error)throw Object.assign(new Error('The relay could not get '+path+' ('+data.error+').'),{final:true});
     return data;
   }
   finally{clearTimeout(t);}
+}
+async function apiGet(path,ms=30000){
+  // "Failed to fetch" means the browser got no readable answer: a cold or crashed relay,
+  // or a Google sign-in page. One retry covers the cold-start case.
+  try{return await relayOnce(path,ms);}
+  catch(e){
+    if(e.final||e.name==='AbortError')throw e;
+    await new Promise(r=>setTimeout(r,800));
+    try{return await relayOnce(path,ms);}
+    catch(e2){
+      if(e2.final||e2.name==='AbortError')throw e2;
+      const err=new Error('Could not reach the relay for '+path+' ('+e2.message+'). Open the relay link to see the real error, or paste the history instead.');
+      err.relayUrl=RELAY+'?path='+encodeURIComponent(path);throw err;
+    }
+  }
 }
 async function probeLive(){
   try{
@@ -903,7 +919,10 @@ async function pullLive(){
     chosen=null;
     loadFromText(JSON.stringify(card?[card,...pas]:pas),false);
     updateLinks();
-  }catch(e){msg.textContent=e.name==='AbortError'?'The site took too long to answer. Try again.':e.message;msg.classList.add('err');}
+  }catch(e){
+    msg.textContent=e.name==='AbortError'?'The site took too long to answer. Try again.':e.message;msg.classList.add('err');
+    if(e.relayUrl){const a=document.createElement('a');a.href=e.relayUrl;a.target='_blank';a.rel='noopener';a.textContent=' Open relay link';msg.appendChild(a);}
+  }
 }
 $('fetchLive').onclick=pullLive;
 $('pname').addEventListener('keydown',e=>{if(e.key==='Enter'&&live)pullLive();});
